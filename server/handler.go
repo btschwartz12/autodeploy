@@ -10,10 +10,6 @@ import (
 	"github.com/go-playground/webhooks/v6/github"
 )
 
-const (
-	timeout = 3 * time.Minute
-)
-
 var supportedEvents = []github.Event{
 	github.PushEvent,
 }
@@ -26,7 +22,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	payload, err := s.webhook.Parse(r, supportedEvents...)
 	if err != nil {
 		if err == github.ErrEventNotFound {
-			s.logger.Infow("event not found")
+			s.logger.Infow("event not found", "eventHeader", r.Header.Get("X-GitHub-Event"))
 			http.Error(w, "event not found", http.StatusNotFound)
 			return
 		}
@@ -66,7 +62,7 @@ func (s *Server) handlePushEvent(event *model.PushEvent) error {
 }
 
 func (s *Server) deployAsync(service *model.Service, event *model.PushEvent) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(service.FlowTimeout))
 	go func() {
 		defer cancel()
 		err := s.deployer.Deploy(ctx, service, event)
@@ -88,6 +84,7 @@ func (s *Server) deployAsync(service *model.Service, event *model.PushEvent) {
 func getSuccessMessage(service *model.Service, event *model.PushEvent) (string, []string) {
 	title := fmt.Sprintf("✅ successfully deployed `%s` ✅", service.Name)
 	followUps := make([]string, 0)
+	followUps = append(followUps, fmt.Sprintf("host: `%s`", service.Hostname))
 	followUps = append(followUps, fmt.Sprintf("repo: `%s`", service.Repo))
 	followUps = append(followUps, fmt.Sprintf("url: `%s`", service.HealthcheckURL))
 	followUps = append(followUps, fmt.Sprintf("commit: `%s`", event.AfterSha))
@@ -97,6 +94,7 @@ func getSuccessMessage(service *model.Service, event *model.PushEvent) (string, 
 func getFailureMessage(service *model.Service, event *model.PushEvent, err error) (string, []string) {
 	title := fmt.Sprintf("❌ failed to deploy `%s` ❌", service.Name)
 	followUps := make([]string, 0)
+	followUps = append(followUps, fmt.Sprintf("host: `%s`", service.Hostname))
 	followUps = append(followUps, fmt.Sprintf("repo: `%s`", service.Repo))
 	followUps = append(followUps, fmt.Sprintf("commit: `%s`", event.AfterSha))
 	followUps = append(followUps, fmt.Sprintf("error: \n```%s```", err.Error()))
@@ -106,6 +104,7 @@ func getFailureMessage(service *model.Service, event *model.PushEvent, err error
 func getTimeoutMessage(service *model.Service, event *model.PushEvent) (string, []string) {
 	title := fmt.Sprintf("❌ deployment timeout for `%s` ❌", service.Name)
 	followUps := make([]string, 0)
+	followUps = append(followUps, fmt.Sprintf("host: `%s`", service.Hostname))
 	followUps = append(followUps, fmt.Sprintf("repo: `%s`", service.Repo))
 	followUps = append(followUps, fmt.Sprintf("commit: `%s`", event.AfterSha))
 	return title, followUps

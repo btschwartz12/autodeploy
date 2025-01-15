@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/btschwartz12/autodeploy/model"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	defaultFlowTimeout = model.Duration(5 * time.Minute)
 )
 
 func New(yamlPath string, testFlag bool) (*model.Config, error) {
@@ -38,6 +43,10 @@ func New(yamlPath string, testFlag bool) (*model.Config, error) {
 		return nil, fmt.Errorf("github_token must be set")
 	}
 
+	if c.Hostname == "" {
+		return nil, fmt.Errorf("hostname must be set")
+	}
+
 	if len(c.Services) == 0 {
 		return nil, fmt.Errorf("at least one service must be defined")
 	}
@@ -47,6 +56,7 @@ func New(yamlPath string, testFlag bool) (*model.Config, error) {
 			return nil, fmt.Errorf("service %s: %w", name, err)
 		}
 		s.Name = name
+		s.Hostname = c.Hostname
 		c.Services[name] = s
 	}
 
@@ -65,6 +75,9 @@ func validate(s *model.Service, testFlag bool) error {
 	}
 	if s.HasSystemdService() && s.ComposeService {
 		return fmt.Errorf("systemd_service and compose_service are mutually exclusive")
+	}
+	if s.FlowTimeout == 0 {
+		s.FlowTimeout = model.Duration(defaultFlowTimeout)
 	}
 	fileInfo, err := os.Stat(s.Path)
 	if err != nil {

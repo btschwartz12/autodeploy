@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/btschwartz12/autodeploy/model"
 	"github.com/stretchr/testify/assert"
 )
 
 const exampleConfig = `
+hostname: your-hostname
 webhook_secret: your-webhook-secret
 webhook_url_suffix: /postreceive
 github_token: your-github-token
@@ -23,6 +25,7 @@ services:
     healthcheck_url: "http://localhost:8080/health"
     compose_service: false
     build_command: "make build"
+    flow_timeout: 5m
 
   service2:
     repo: "https://github.com/example/repo2"
@@ -66,6 +69,7 @@ func TestGenerateConfigWithValidPaths(t *testing.T) {
 	config, err := New(yamlPath, true)
 	assert.NoError(t, err)
 
+	assert.Equal(t, "your-hostname", config.Hostname)
 	assert.Equal(t, "/postreceive", config.WebhookURLSuffix)
 	assert.Equal(t, "your-webhook-secret", config.WebhookSecret)
 	assert.Equal(t, "your-github-token", config.GithubToken)
@@ -76,6 +80,7 @@ func TestGenerateConfigWithValidPaths(t *testing.T) {
 
 	service1 := config.Services["service1"]
 	assert.Equal(t, "service1", service1.Name)
+	assert.Equal(t, time.Duration(5*time.Minute).String(), service1.FlowTimeout.String())
 	assert.Equal(t, "https://github.com/example/repo1", service1.Repo)
 	assert.Equal(t, service1Path, service1.Path)
 	assert.Equal(t, "service1", service1.SystemdService)
@@ -85,6 +90,7 @@ func TestGenerateConfigWithValidPaths(t *testing.T) {
 
 	service2 := config.Services["service2"]
 	assert.Equal(t, "service2", service2.Name)
+	assert.Equal(t, time.Duration(defaultFlowTimeout).String(), service2.FlowTimeout.String())
 	assert.Equal(t, "https://github.com/example/repo2", service2.Repo)
 	assert.Equal(t, service2Path, service2.Path)
 	assert.Equal(t, "service2", service2.SystemdService)
@@ -95,6 +101,7 @@ func TestGenerateConfigWithValidPaths(t *testing.T) {
 
 	service3 := config.Services["service3"]
 	assert.Equal(t, "service3", service3.Name)
+	assert.Equal(t, time.Duration(defaultFlowTimeout).String(), service3.FlowTimeout.String())
 	assert.Equal(t, "https://github.com/example/repo3", service3.Repo)
 	assert.Equal(t, service3Path, service3.Path)
 	assert.Equal(t, "http://localhost:3000/health", service3.HealthcheckURL)

@@ -4,6 +4,8 @@ Autodeploy listens for GitHub webhooks and deploys Docker Compose or systemd ser
 
 Since Autodeploy needs to run commands for other repositories on the host, it must run without Docker. This means you need to install Go and preferrebly run Autodeploy as a systemd service.
 
+Below is a rough guide on how to set it up.
+
 ### 1. Generate a webhook secret and get a GitHub PAT
 
 First, generate a secret:
@@ -19,32 +21,36 @@ Then, create a GitHub [personal access token](https://github.com/settings/tokens
 This is where you define the repositories and their deployment commands. You need to create a `config.yaml` (preferably at the repository root). Here's an example:
 
 ```yaml
+hostname: your-server
 webhook_secret: your-webhook-secret
 webhook_url_suffix: /postreceive
 github_token: your-github-token
 
 services:
   service1:
-    repo: "https://github.com/example/repo1"
-    path: "/path/to/service1"
-    systemd_service: "service1"
-    healthcheck_url: "http://localhost:8080/health"
+    repo: https://github.com/example/repo1
+    path: /path/to/service1
+    systemd_service: service1
+    healthcheck_url: http://localhost:8080/health
     compose_service: false
-    build_command: "make build"
+    build_command: make build
+    flow_timeout: 1m
 
   service2:
-    repo: "https://github.com/example/repo2"
-    path: "/path/to/service2"
-    systemd_service: "service2"
-    healthcheck_url: "http://localhost:9090/health"
+    repo: https://github.com/example/repo2
+    path: /path/to/service2
+    systemd_service: service2
+    healthcheck_url: http://localhost:9090/health
     compose_service: false
-    build_command: "go build ./..."
+    build_command: go build ./...
+    flow_timeout: 2m
 
   service3:
-    repo: "https://github.com/example/repo3"
-    path: "/path/to/service3"
-    healthcheck_url: "http://localhost:3000/health"
+    repo: https://github.com/example/repo3
+    path: /path/to/service3
+    healthcheck_url: http://localhost:3000/health
     compose_service: true
+    flow_timeout: 20s
 ```
 
 ### 3. Create an `autodeploy.env` file
@@ -135,3 +141,7 @@ The GitHub libraries in this project support nearly all events, but only push ev
 #### 4. `config.yaml` is dangerous
 
 Not only will sensitive tokens be in this file, but they also define arbitrary commands to be run on the host. Keep it secure!
+
+#### 5. No support for triggering workflows
+
+This is a feature I would like to add in the future, but it is not a priority at the moment.

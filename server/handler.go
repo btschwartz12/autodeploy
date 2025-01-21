@@ -12,6 +12,7 @@ import (
 
 var supportedEvents = []github.Event{
 	github.PushEvent,
+	github.PingEvent,
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +47,9 @@ func (s *Server) handleEvent(payload interface{}) error {
 		pushEvent := model.PushEvent{}
 		pushEvent.FromPayload(event)
 		return s.handlePushEvent(&pushEvent)
+	case github.PingPayload:
+		s.logger.Infow("ping event received", "repo", event.Repository.FullName, "hook", event.Hook.Name)
+		return nil
 	default:
 		return fmt.Errorf("unsupported event type: %T", event)
 	}

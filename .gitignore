@@ -1,3 +1,4 @@
 autodeploy.env
 config.yaml
 autodeploy
+.DS_Store

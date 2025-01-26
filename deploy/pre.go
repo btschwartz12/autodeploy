@@ -2,9 +2,11 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	"github.com/btschwartz12/autodeploy/model"
@@ -49,14 +51,41 @@ func (d *Deployer) pull(ctx context.Context, service *model.Service, event *mode
 		return fmt.Errorf("worktree is not clean")
 	}
 	err = worktree.PullContext(ctx, &git.PullOptions{
+		Force: true,
 		Auth: &http.BasicAuth{
 			Username: "can-be-anything",
 			Password: d.ghToken,
 		},
 		RemoteName: "autodeploy",
 	})
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+	if errors.Is(err, git.ErrNonFastForwardUpdate) {
+		d.logger.Infow("non-fast-forward update detected, resetting", "service", service.Name)
+		newHead := plumbing.NewHash(event.AfterSha)
+		err = worktree.Reset(&git.ResetOptions{
+			Mode:   git.HardReset,
+			Commit: newHead,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to reset worktree: %w", err)
+		}
+		err = worktree.PullContext(ctx, &git.PullOptions{
+			Force: true,
+			Auth: &http.BasicAuth{
+				Username: "can-be-anything",
+				Password: d.ghToken,
+			},
+			RemoteName: "autodeploy",
+		})
+		if !errors.Is(err, git.NoErrAlreadyUpToDate) {
+			return fmt.Errorf("failed to pull: %w", err)
+		}
+		return nil
+	}
 	if err != nil {
-		return fmt.Errorf("failed to pull from origin: %w", err)
+		return fmt.Errorf("failed to pull: %w", err)
 	}
 	return nil
 }
